@@ -127,7 +127,6 @@ const app = Vue.createApp({
     methods: {
         // ==========================================
         // 🌟 终极修复：本地影像压缩引擎 🌟
-        // 保证你传的图再大也不会撑爆浏览器内存！
         // ==========================================
         compressImage(file, callback) {
             const reader = new FileReader();
@@ -150,7 +149,6 @@ const app = Vue.createApp({
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // 输出为压缩率极高的 JPEG (0.7画质)，彻底解决掉档问题！
                     callback(canvas.toDataURL('image/jpeg', 0.7));
                 };
                 img.src = e.target.result;
@@ -218,7 +216,6 @@ const app = Vue.createApp({
             this.images.film = safeStorage.get('img_film') || '';
         },
         saveImages() {
-            // 不再信任 watch，手动确保保存！
             for(let key in this.images) { 
                 safeStorage.set('img_' + key, this.images[key]); 
             }
@@ -235,16 +232,15 @@ const app = Vue.createApp({
             if (isUrl) {
                 if (!this.tempUploadUrl) return this.showToast("请输入有效地址！");
                 this.images.wallpaper = this.tempUploadUrl;
-                this.saveImages(); // 强制存盘
+                this.saveImages();
                 this.closeModal('wallpaper');
                 this.showToast("背景壁纸已更新");
             } else {
                 const file = e.target.files[0];
                 if (!file) return;
-                // 🌟 使用全新压缩引擎
                 this.compressImage(file, (compressedSrc) => {
                     this.images.wallpaper = compressedSrc;
-                    this.saveImages(); // 强制存盘
+                    this.saveImages();
                     this.closeModal('wallpaper');
                     this.showToast("背景壁纸已更新");
                 });
@@ -252,7 +248,7 @@ const app = Vue.createApp({
         },
         clearWallpaper() {
             this.images.wallpaper = '';
-            this.saveImages(); // 强制存盘
+            this.saveImages();
             this.closeModal('wallpaper');
             this.showToast("壁纸已恢复默认");
         },
@@ -270,7 +266,7 @@ const app = Vue.createApp({
                     this.editingFile.avatar = src; 
                 } else {
                     this.images[this.currentUploadTarget] = src; 
-                    this.saveImages(); // 贴纸强制存盘
+                    this.saveImages();
                 }
                 this.closeModal('upload');
                 this.showToast("影像已更新");
@@ -282,7 +278,6 @@ const app = Vue.createApp({
             } else {
                 const file = e.target.files[0];
                 if (!file) return;
-                // 🌟 使用全新压缩引擎
                 this.compressImage(file, (compressedSrc) => {
                     setTargetData(compressedSrc);
                 });
@@ -293,7 +288,7 @@ const app = Vue.createApp({
                 this.editingFile.avatar = ''; 
             } else {
                 this.images[this.currentUploadTarget] = ''; 
-                this.saveImages(); // 清空也要强制存盘
+                this.saveImages();
             }
             this.closeModal('upload');
             this.showToast("影像已清空");
@@ -350,12 +345,62 @@ const app = Vue.createApp({
             if (!this.fabDragging) { this.fabActive = !this.fabActive; } 
             else { this.fabBase.x = this.fabPos.x; this.fabBase.y = this.fabPos.y; this.fabDragging = false; }
         },
+
+        // ==========================================
+        // 🌟 导出 / 导入 / 粉碎 数据 🌟
+        // ==========================================
         exportData() {
-            let exportObj = {}; for (let i = 0; i < localStorage.length; i++) { let key = localStorage.key(i); exportObj[key] = localStorage.getItem(key); }
+            let exportObj = {}; 
+            for (let i = 0; i < localStorage.length; i++) { 
+                let key = localStorage.key(i); 
+                exportObj[key] = localStorage.getItem(key); 
+            }
             const dataUri = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
-            const anchor = document.createElement('a'); anchor.setAttribute("href", dataUri); anchor.setAttribute("download", "AIRP_Backup_Data.json"); document.body.appendChild(anchor); anchor.click(); anchor.remove();
-            this.fabActive = false; this.showToast("备份已下载");
+            const anchor = document.createElement('a'); 
+            anchor.setAttribute("href", dataUri); 
+            anchor.setAttribute("download", "Forever_Backup_Data.json"); 
+            document.body.appendChild(anchor); 
+            anchor.click(); 
+            anchor.remove();
+            this.fabActive = false; 
+            this.showToast("备份已下载");
         },
+        
+        // 🌟 新增：触发导入选择框
+        triggerImport() {
+            document.getElementById('importInput').click();
+            this.fabActive = false;
+        },
+
+        // 🌟 新增：解析 JSON 并恢复数据
+        importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    // 弹窗确认覆盖
+                    this.showConfirm(
+                        "恢复数据存档", 
+                        "导入备份将覆盖并替换当前设备上的所有数据！是否继续？", 
+                        () => {
+                            localStorage.clear(); // 拔草除根，清掉旧数据
+                            for (let key in importedData) {
+                                localStorage.setItem(key, importedData[key]);
+                            }
+                            this.showToast("存档导入成功！正在重载...");
+                            setTimeout(() => { location.reload(); }, 800); // 强力刷新页面应用存档
+                        }
+                    );
+                } catch (err) {
+                    this.showAlert("解析存档失败！<br><small>请确保上传的是之前导出的 JSON 备份文件。</small>");
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // 清空 input，允许后续重复传同一个文件
+        },
+
         clearData() {
             this.showConfirm("数据粉碎确认", "此操作将清除所有贴纸、设置与档案记录，且永久不可恢复。是否继续？", () => { localStorage.clear(); location.reload(); });
         },
@@ -366,7 +411,6 @@ const app = Vue.createApp({
             this.files.users = JSON.parse(safeStorage.get('file_users') || '[]');
         },
         saveFiles() {
-            // 🌟 不再依赖易失效的 watch，手动把命脉抓在手里！
             safeStorage.set('file_chars', JSON.stringify(this.files.chars));
             safeStorage.set('file_users', JSON.stringify(this.files.users));
         },
@@ -391,7 +435,7 @@ const app = Vue.createApp({
                 if (idx > -1) list.splice(idx, 1);
                 if (this.fileTab === 'user') { this.files.chars.forEach(char => { if (char.boundUserId === id) char.boundUserId = null; }); }
                 
-                this.saveFiles(); // 🚨 强制锁定硬盘存盘！！
+                this.saveFiles(); 
                 this.showToast("档案已抹除");
             });
         },
@@ -416,3 +460,4 @@ const app = Vue.createApp({
 });
 
 app.mount('#app');
+
