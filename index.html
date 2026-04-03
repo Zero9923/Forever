@@ -533,5 +533,19 @@
 <!-- 引入 Vue 逻辑文件 -->
 <script src="app.js"></script>
 
+<!-- 🚨 专属 PWA 注册代码：独立的一个 script 块，放在 body 闭合标签的上方 🚨 -->
+<script>
+    // 注册 Service Worker (离线与缓存引擎)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').then(reg => {
+                console.log('PWA ServiceWorker 注册成功！范围: ', reg.scope);
+            }).catch(err => {
+                console.warn('PWA 注册失败: ', err);
+            });
+        });
+    }
+</script>
+
 </body>
 </html>
