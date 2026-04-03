@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Gateway - Vue Powered SPA</title>
+    <!-- 引入抽离的 CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+    <!-- ================= 全局模糊壁纸层 ================= -->
+    <div id="bgWallpaper" 
+         :style="{ opacity: images.wallpaper ? 1 : 0, backgroundImage: images.wallpaper ? `url(${images.wallpaper})` : 'none' }">
+    </div>
+    <div id="bgOverlay" 
+         :style="{ opacity: images.wallpaper ? 1 : 0 }">
+    </div>
+
+    <!-- ================= 顶层提示与各类弹窗 ================= -->
+    <!-- 1. 轻提示 Toast -->
+    <div id="toastBox" class="toast-msg" :class="{ show: modals.toast }">
+        {{ toastText }}
+    </div>
+
+    <!-- 2. 单按钮警告窗 Alert -->
+    <div class="sys-modal-overlay" :class="{ active: modals.alert }">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" v-html="alertText"></div>
+            <button class="sys-btn-solid" @click="closeModal('alert')">知 道 啦</button>
+        </div>
+    </div>
+
+    <!-- 3. 绝美双按钮全自定义操作确认窗 Confirm -->
+    <div class="sys-modal-overlay" :class="{ active: modals.confirm }" style="z-index: 10000;">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" style="font-weight: 600; margin-bottom: 10px;">
+                {{ confirmTitle }}
+            </div>
+            <div class="sys-modal-msg" style="font-size: 12px; color: var(--api-light); margin-bottom: 30px;">
+                {{ confirmText }}
+            </div>
+            <div class="sys-modal-actions">
+                <button class="sys-btn-outline" @click="closeModal('confirm')">取 消</button>
+                <button class="sys-btn-solid" style="background: var(--api-red); color: white;" @click="executeConfirm()">确 认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 🌟 增强版：更换壁纸弹窗 (加入恢复默认按钮) -->
+    <div class="sys-modal-overlay" :class="{ active: modals.wallpaper }">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" style="font-weight: 500;">更换环境壁纸</div>
+            
+            <input type="text" class="sys-modal-input" placeholder="输入网络图片 URL..." v-model="tempUploadUrl">
+            <button class="sys-btn-solid" style="width: 100%; margin-bottom: 5px;" @click="applyWallpaper(true)">设定网络壁纸</button>
+            
+            <div class="sys-modal-divider"> 或 </div>
+            
+            <label class="sys-btn-outline" style="display: block; padding: 12px 0; margin-bottom: 15px; cursor: pointer;">
+                选择本地照片 
+                <input type="file" accept="image/*" @change="applyWallpaper(false, $event)">
+            </label>
+            
+            <!-- 新增：恢复默认按钮 -->
+            <button class="sys-btn-danger-outline" style="margin-bottom: 15px;" @click="clearWallpaper()">恢复默认壁纸</button>
+
+            <button class="sys-btn-outline" style="border: none; color: var(--api-light);" @click="closeModal('wallpaper')">取 消</button>
+        </div>
+    </div>
+
+    <!-- 5. 🌟 增强版：万能图片上传弹窗 (加入清空影像按钮) -->
+    <div class="sys-modal-overlay" :class="{ active: modals.upload }">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" style="font-weight: 500;">{{ uploadTitle }}</div>
+            
+            <input type="text" class="sys-modal-input" placeholder="输入网络图片 URL..." v-model="tempUploadUrl">
+            <button class="sys-btn-solid" style="width: 100%; margin-bottom: 5px;" @click="applyImage(true)">应用网络图片</button>
+            
+            <div class="sys-modal-divider"> 或 </div>
+            
+            <label class="sys-btn-outline" style="display: block; padding: 12px 0; margin-bottom: 15px; cursor: pointer;">
+                选择本地照片 
+                <input type="file" accept="image/*" @change="applyImage(false, $event)">
+            </label>
+
+            <!-- 新增：清空/恢复默认按钮 -->
+            <button class="sys-btn-danger-outline" style="margin-bottom: 15px;" @click="clearUploadImage()">清空/恢复默认影像</button>
+
+            <button class="sys-btn-outline" style="border: none; color: var(--api-light);" @click="closeModal('upload')">取 消</button>
+        </div>
+    </div>
+
+    <!-- ================= 1. 首页网关 ================= -->
+    <div id="gatewayScreen" :style="styles.gateway">
+        <div class="status-bar top-bar">
+            <span>SYS.INIT<span class="cursor-blink">_</span></span>
+            <svg class="icon-settings" viewBox="0 0 24 24" @click="modals.settings = true">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+        </div>
+        
+        <div class="header-text">
+            <div class="subtitle">A C C E S S</div>
+            <h1 class="title">请选择见面方式</h1>
+        </div>
+        
+        <div class="cards-wrapper">
+            <div class="card" @click="startSyncSequence()">
+                <svg class="card-icon" viewBox="0 0 24 24">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                </svg>
+                <div class="card-en">O N L I N E</div>
+                <div class="card-cn">线上联络</div>
+            </div>
+            <div class="card">
+                <svg class="card-icon" viewBox="0 0 24 24">
+                    <path d="M18 20V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16"></path>
+                    <path d="M4 20h16"></path>
+                    <circle cx="14" cy="12" r="1"></circle>
+                </svg>
+                <div class="card-en">O F F L I N E</div>
+                <div class="card-cn">线下相见</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 2. 骇客转场动画 ================= -->
+    <div id="transitionScreen" :style="styles.transition">
+        <div class="scan-line" :style="{ height: styles.scanLineHeight }"></div>
+        <div class="sync-text" :style="{ opacity: styles.syncTextOpacity }">{{ styles.syncText }}</div>
+    </div>
+
+    <!-- ================= 3. 线上大厅 ================= -->
+    <div id="hubScreen" 
+         :style="styles.hub" 
+         @mousedown="startPress" 
+         @mouseup="cancelPress" 
+         @mouseleave="cancelPress" 
+         @touchstart.passive="startPress" 
+         @touchend="cancelPress">
+        
+        <div class="hub-collage-area">
+            <div class="sticker stk-text-1" :class="{'sticker-show': showStickers}">10:45 AM<br>SYS_LOG</div>
+            <div class="sticker stk-text-2" :class="{'sticker-show': showStickers}">TAPE // 01</div>
+            <div class="sticker stk-barcode" :class="{'sticker-show': showStickers}">[SCAN_NODE_4092]</div>
+            <div class="sticker stk-memo" :class="{'sticker-show': showStickers}">CODE: UNKNOWN<br>TARGET: LOCKED</div>
+            <div class="sticker stk-tape" :class="{'sticker-show': showStickers}"></div>
+
+            <div class="sticker" id="stk-polaroid" :class="{'sticker-show': showStickers}" @click="openUpload('polaroid', '设定拍立得照片')">
+                <div class="stk-inner">
+                    <span class="stk-ph" v-show="!images.polaroid">✚</span>
+                    <img class="stk-img" :src="images.polaroid" v-show="images.polaroid">
+                </div>
+            </div>
+            
+            <div class="sticker" id="stk-circle" :class="{'sticker-show': showStickers}" :style="{ border: images.circle ? 'none' : '', background: images.circle ? 'transparent' : '' }" @click="openUpload('circle', '设定圆形印记')">
+                <span class="stk-ph" v-show="!images.circle">✚</span>
+                <img class="stk-img" :src="images.circle" v-show="images.circle">
+            </div>
+            
+            <div class="sticker" id="stk-film" :class="{'sticker-show': showStickers}" :style="{ border: images.film ? 'none' : '' }" @click="openUpload('film', '设定碎片影像')">
+                <span class="stk-ph" v-show="!images.film">影像</span>
+                <img class="stk-img" :src="images.film" v-show="images.film">
+            </div>
+        </div>
+
+        <div class="hub-main-bottom">
+            <div class="hub-nav-left">
+                <!-- Home -->
+                <div class="nav-item" :style="{ opacity: styles.navItemOpacity, transform: styles.navItemTransform }" @click="returnToGateway()">
+                    <div class="nav-text">Home</div>
+                    <div class="nav-icon-circle">
+                        <svg class="nav-svg" viewBox="0 0 24 24">
+                            <path d="M9 14L4 9l5-5"></path>
+                            <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"></path>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Chat (🌟 核心修改：点击直接打通打开 Chat 界面 🌟) -->
+                <div class="nav-item" :style="{ opacity: styles.navItemOpacity, transform: styles.navItemTransform, transitionDelay: '0.08s' }" @click="openChat()">
+                    <div class="nav-text">Chat</div>
+                    <div class="nav-icon-circle">
+                        <svg class="nav-svg" viewBox="0 0 24 24">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- File -->
+                <div class="nav-item" :style="{ opacity: styles.navItemOpacity, transform: styles.navItemTransform, transitionDelay: '0.16s' }" @click="openFileModal()">
+                    <div class="nav-text">File</div>
+                    <div class="nav-icon-circle">
+                        <svg class="nav-svg" viewBox="0 0 24 24">
+                            <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
+                            <line x1="8" y1="10" x2="16" y2="10"></line>
+                            <line x1="8" y1="14" x2="12" y2="14"></line>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Worldbook -->
+                <div class="nav-item" :style="{ opacity: styles.navItemOpacity, transform: styles.navItemTransform, transitionDelay: '0.24s' }" @click="showAlert('正在加载世界书...')">
+                    <div class="nav-text">World<br>book</div>
+                    <div class="nav-icon-circle">
+                        <svg class="nav-svg" viewBox="0 0 24 24">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IG 卡片 -->
+            <div class="hub-ig-post" :style="styles.igCard">
+                <div class="ig-header">
+                    <div class="ig-user">
+                        <div class="ig-avatar">
+                            <span v-show="!images.igCore">XM</span>
+                            <img :src="images.igCore" v-show="images.igCore" style="width:100%; height:100%; object-fit:cover;">
+                        </div>
+                        <div class="ig-name">XIA.M</div>
+                    </div>
+                    <div class="ig-more">...</div>
+                </div>
+                
+                <div class="ig-image-box" :style="{ border: images.igCore ? 'none' : '' }" @click="openUpload('igCore', '设定主推影像')">
+                    <img :src="images.igCore" v-show="images.igCore" style="width: 100%; height: 100%; object-fit: cover; position: absolute;">
+                    <div class="ig-placeholder" v-show="!images.igCore">
+                        <svg style="width:24px; height:24px; stroke:var(--api-light); fill:none;" viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <span>上传影像</span>
+                    </div>
+                </div>
+                
+                <div class="ig-actions">
+                    <svg class="ig-action-icon" viewBox="0 0 24 24">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                    <svg class="ig-action-icon" viewBox="0 0 24 24">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                    </svg>
+                    <svg class="ig-action-icon" viewBox="0 0 24 24">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= 🌟 震撼登场：Chat 终端通讯界面 🌟 ================= -->
+    <div id="chatScreen" :style="styles.chat">
+        
+        <!-- 顶部导航栏 -->
+        <div class="chat-header-bar">
+            <div class="chat-tabs">
+                <div class="chat-tab-btn" :class="{ active: chatTab === 'message' }" @click="switchChatTab('message')">Message</div>
+                <div class="chat-tab-btn" :class="{ active: chatTab === 'moments' }" @click="switchChatTab('moments')">Moments</div>
+            </div>
+            
+            <!-- 设置按钮 (复用打开设置弹窗) -->
+            <svg style="width:24px; height:24px; stroke:var(--api-text); fill:none; stroke-width:1.5; cursor:pointer;" viewBox="0 0 24 24" @click="modals.settings = true">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+        </div>
+
+        <!-- 1. 通讯录 / 聊天列表 (动态绑定自 File 库里的 Char 角色) -->
+        <div class="chat-contact-list" v-show="chatTab === 'message'">
+            
+            <!-- 如果没有建立角色，给出绝美的引导提示 -->
+            <div v-if="files.chars.length === 0" style="text-align:center; padding-top:60px; color:var(--api-light); font-size:13px; line-height: 2;">
+                通讯录空空如也。<br>
+                请先前往大厅的 [File] 档案管理系统，<br>创建你的第一位联络人 (Char)。
+            </div>
+
+            <!-- 渲染从档案库同步过来的角色列表 -->
+            <div class="chat-contact-item" v-for="char in files.chars" :key="char.id" @click="enterChatRoom(char)">
+                <img :src="char.avatar || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23e5e5e5\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'" class="chat-contact-avatar">
+                <div class="chat-contact-info">
+                    <div class="chat-contact-name">{{ char.name }}</div>
+                    <div class="chat-contact-preview">{{ char.desc ? char.desc : '暂无详细设定信息...' }}</div>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- 2. 动态朋友圈 (Moments 预留) -->
+        <div class="chat-moments-list" v-show="chatTab === 'moments'">
+            
+            <div class="moment-card" v-for="m in moments" :key="m.id">
+                <div class="moment-header">
+                    <img :src="m.avatar || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23e5e5e5\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'" class="moment-avatar">
+                    <div class="moment-name-box">
+                        <div class="moment-name">{{ m.author }}</div>
+                        <div class="moment-time">{{ m.time }}</div>
+                    </div>
+                </div>
+                
+                <div class="moment-text" v-if="m.text">{{ m.text }}</div>
+                <img :src="m.img" class="moment-img" v-if="m.img">
+                
+                <div class="moment-actions">
+                    <!-- 点赞图标 -->
+                    <svg class="moment-icon" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    <!-- 评论图标 -->
+                    <svg class="moment-icon" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 底部退回大厅栏 -->
+        <div class="chat-bottom-nav">
+            <button class="chat-back-btn" @click="closeChat()">RETREAT 返回大厅</button>
+        </div>
+
+    </div>
+
+
+    <!-- ================= 4. API 核心系统 ================= -->
+    <div class="settings-modal" :class="{ active: modals.settings }">
+        <div class="modal-header">
+            <div class="modal-title">API 通讯底层设置</div>
+            <button class="btn-close" @click="closeModal('settings')">×</button>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">接口地址 (Base URL)</label>
+            <input type="text" class="input-line" placeholder="https://api.openai.com/v1" v-model="apiForm.url">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">密钥 (API Key)</label>
+            <input type="password" class="input-line" placeholder="sk-..." v-model="apiForm.key">
+        </div>
+        
+        <div class="api-actions">
+            <button class="btn-text" @click="fetchModels()" :style="{ color: fetchStatus==='拉取中...' ? 'var(--api-light)' : 'var(--api-text)' }">
+                {{ fetchStatus }}
+            </button>
+            <div style="display: flex; gap: 15px;">
+                <button class="btn-text" @click="tempInputName=''; modals.prompt = true;">保存预设</button>
+                <button class="btn-text" @click="modals.presetList = true;">管理预设</button>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">当前模型</label>
+            <input type="text" class="input-line" placeholder="可手动输入，或点击选择" v-model="apiForm.model">
+            <div class="input-icon-btn" @click="modals.modelList = true;">▼</div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">模型温度 (Temperature)</label>
+            <div class="slider-container">
+                <input type="range" min="0" max="2" step="0.1" v-model="apiForm.temp">
+                <span class="slider-val">{{ apiForm.temp }}</span>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button class="btn-solid" @click="saveActiveConfig()">应用此配置</button>
+        </div>
+    </div>
+
+    <div class="sys-modal-overlay" :class="{ active: modals.prompt }">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" style="font-weight: 500;">为这组配置起个名字</div>
+            <input type="text" class="sys-modal-input" placeholder="输入名称..." v-model="tempInputName">
+            <div class="sys-modal-actions">
+                <button class="sys-btn-outline" @click="closeModal('prompt')">取 消</button>
+                <button class="sys-btn-solid" @click="saveNewPreset()">保 存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API 预设列表弹窗 -->
+    <div class="sys-modal-overlay" :class="{ active: modals.presetList }" style="z-index: 1005;">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" style="font-weight: 500; margin-bottom: 10px;">选择/管理 API预设</div>
+            <div class="sys-list-container">
+                <div v-if="presets.length === 0" style="padding:20px; text-align:center; color:var(--api-light); font-size:12px;">暂无保存的预设</div>
+                <div class="sys-list-item" v-for="p in presets" :key="p.id">
+                    <div class="sys-list-content" @click="applyPreset(p)">
+                        <div class="sys-list-name">{{ p.name }}</div>
+                        <div class="sys-list-sub">{{ p.url.replace(/^https?:\/\//, '').split('/')[0] || '无URL' }} | 🌡️ {{ p.temp }}</div>
+                    </div>
+                    <div class="sys-btn-delete" @click.stop="deletePreset(p.id)">✕</div>
+                </div>
+            </div>
+            <button class="sys-btn-outline" style="width: 100%;" @click="closeModal('presetList')">关 闭</button>
+        </div>
+    </div>
+
+    <div class="sys-modal-overlay" :class="{ active: modals.modelList }">
+        <div class="sys-modal-box">
+            <div class="sys-modal-msg" style="font-weight: 500; margin-bottom: 10px;">选择模型</div>
+            <div class="sys-list-container">
+                <div v-if="fetchedModels.length === 0" style="padding:20px; text-align:center; color:var(--api-light); font-size:12px;">请先拉取</div>
+                <div class="sys-list-item" v-for="m in fetchedModels" :key="m" @click="selectModel(m)">
+                    <div class="sys-list-content">
+                        <div class="sys-list-name">{{ m }}</div>
+                    </div>
+                </div>
+            </div>
+            <button class="sys-btn-outline" style="width: 100%;" @click="closeModal('modelList')">关 闭</button>
+        </div>
+    </div>
+
+    <!-- ================= 全局拖拽悬浮球 ================= -->
+    <div class="fab-wrapper" 
+         :class="{ active: fabActive, dragging: fabDragging }" 
+         :style="{ transform: `translate(${fabPos.x}px, ${fabPos.y}px)` }">
+        
+        <div class="fab-menu">
+            <div class="fab-item" @click="modals.presetList = true; fabActive = false;">切换 API 预设</div>
+            <div class="fab-item" @click="exportData()">备份存档 (JSON)</div>
+            <div class="fab-item danger" @click="clearData()">粉碎所有数据</div>
+            <div class="fab-item" @click="returnToGateway(); fabActive = false;">退回网关</div>
+        </div>
+        
+        <div class="fab-main" 
+             @touchstart.prevent="onFabTouchStart" 
+             @touchmove.prevent="onFabTouchMove" 
+             @touchend.prevent="onFabTouchEnd">
+            <svg viewBox="0 0 24 24" stroke-linejoin="round">
+                <path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- ================= 5. File 档案库 (列表页) ================= -->
+    <div class="file-modal" :class="{ active: modals.file }">
+        <div class="modal-header">
+            <div class="modal-title">档案管理系统</div>
+            <button class="btn-close" @click="closeModal('file')">×</button>
+        </div>
+
+        <div class="file-tabs">
+            <div class="file-tab" :class="{ active: fileTab === 'char' }" @click="switchFileTab('char')">Char (角色)</div>
+            <div class="file-tab" :class="{ active: fileTab === 'user' }" @click="switchFileTab('user')">User (面具)</div>
+        </div>
+
+        <div class="file-list">
+            <div v-if="(fileTab === 'char' ? files.chars : files.users).length === 0" style="text-align:center; padding-top:40px; color:var(--api-light); font-size:12px;">
+                此处空空如也，请新增档案记录。
+            </div>
+
+            <div class="file-card" v-for="item in (fileTab === 'char' ? files.chars : files.users)" :key="item.id" @click="editFile(item)">
+                <img :src="item.avatar || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23e5e5e5\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'" class="file-avatar">
+                <div class="file-info">
+                    <div class="file-name">{{ item.name }}</div>
+                    <div class="file-desc">{{ item.desc || '（暂无详细描述）' }}</div>
+                </div>
+                <div class="sys-btn-delete" @click.stop="deleteFile(item.id)">✕</div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-solid" style="background:transparent; border:1px solid var(--api-text); color:var(--api-text);" @click="createNewFile()">
+                + 新建 {{ fileTab === 'char' ? '角色' : '面具' }}
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= 6. File 档案库 (编辑详情页) ================= -->
+    <div class="file-modal" :class="{ active: modals.fileEdit }" style="z-index: 105;">
+        <div class="modal-header">
+            <div class="modal-title">
+                {{ editingFile.id && (files.chars.some(c=>c.id===editingFile.id) || files.users.some(u=>u.id===editingFile.id)) ? '编辑档案' : '录入新档案' }}
+            </div>
+            <button class="btn-close" @click="closeModal('fileEdit')">×</button>
+        </div>
+
+        <div class="edit-avatar-box" @click="openUpload('fileAvatar', '设定档案头像')">
+            <img :src="editingFile.avatar" v-show="editingFile.avatar">
+            <div class="edit-avatar-hint" v-show="!editingFile.avatar">点击上传像</div>
+        </div>
+
+        <input type="text" class="input-area" placeholder="在此输入名称..." v-model="editingFile.name">
+        <textarea class="input-area" style="height: 120px;" placeholder="录入设定详细描述 (Prompt/设定集)..." v-model="editingFile.desc"></textarea>
+
+        <!-- 角色绑定面具的纯手写下拉框 -->
+        <div class="custom-select-wrapper" :class="{ open: customSelectOpen }" v-show="fileTab === 'char'" @click.stop="toggleCustomSelect()">
+            <div class="form-label" style="margin-bottom: 12px; font-weight: 500;">绑定特定扮演面具 (User)</div>
+            
+            <div class="custom-select-display" :class="{ placeholder: !editingFile.boundUserId }">
+                <span>{{ getBoundUserName(editingFile.boundUserId) || '未绑定特定面具 (将使用默认)' }}</span>
+                <span class="custom-select-icon">▼</span>
+            </div>
+            
+            <div class="custom-select-dropdown">
+                <div class="custom-select-item" @click.stop="selectBoundUser(null)">
+                    <div style="width:24px; height:24px; border-radius:50%; border:1px dashed var(--api-light); flex-shrink:0;"></div>
+                    <span>解除绑定</span>
+                </div>
+                
+                <div class="custom-select-item" v-for="u in files.users" :key="u.id" @click.stop="selectBoundUser(u.id)">
+                    <img :src="u.avatar || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23e5e5e5\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'" class="custom-select-avatar">
+                    <span>{{ u.name }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-solid" @click="saveEditingFile()">封装档案并保存</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- 引入 Vue 逻辑文件 -->
+<script src="app.js"></script>
+
+</body>
+</html>
