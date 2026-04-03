@@ -428,7 +428,7 @@
         </div>
     </div>
 
-    <!-- ================= 全局拖拽悬浮球 ================= -->
+        <!-- ================= 🚨完美进化的全局拖拽悬浮球🚨 ================= -->
     <div class="fab-wrapper" 
          :class="{ active: fabActive, dragging: fabDragging }" 
          :style="{ transform: `translate(${fabPos.x}px, ${fabPos.y}px)` }">
@@ -436,10 +436,15 @@
         <div class="fab-menu">
             <div class="fab-item" @click="modals.presetList = true; fabActive = false;">切换 API 预设</div>
             <div class="fab-item" @click="exportData()">备份存档 (JSON)</div>
+            <!-- 🌟 新增：导入存档按钮 -->
+            <div class="fab-item" @click="triggerImport()">导入存档 (JSON)</div>
             <div class="fab-item danger" @click="clearData()">粉碎所有数据</div>
             <div class="fab-item" @click="returnToGateway(); fabActive = false;">退回网关</div>
         </div>
         
+        <!-- 🌟 新增：隐藏的导入文件域，专门用来吃 JSON 备份文件 -->
+        <input type="file" id="importInput" style="display: none;" accept=".json" @change="importData">
+
         <div class="fab-main" 
              @touchstart.prevent="onFabTouchStart" 
              @touchmove.prevent="onFabTouchMove" 
@@ -449,6 +454,7 @@
             </svg>
         </div>
     </div>
+
 
     <!-- ================= 5. File 档案库 (列表页) ================= -->
     <div class="file-modal" :class="{ active: modals.file }">
